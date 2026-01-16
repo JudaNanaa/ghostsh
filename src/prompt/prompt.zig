@@ -10,6 +10,7 @@ pub fn receivePrompt(allocator: std.mem.Allocator) void {
             std.debug.print("error", .{});
             return;
         };
+        parser.parse(command_line);
         std.debug.print("{s}\n", .{command_line});
         rl.free(command_line);
     }
