@@ -5,9 +5,7 @@ pub const c = @cImport({
     @cInclude("readline/readline.h");
 });
 
-pub fn readline(prompt: []const u8) ?[]const u8 {
-    const allocator = std.heap.page_allocator;
-
+pub fn readline(allocator: std.mem.Allocator, prompt: []const u8) ?[]const u8 {
     const cstr = allocator.dupeZ(u8, prompt) catch return null;
     defer allocator.free(cstr);
 
