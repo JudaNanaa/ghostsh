@@ -4,13 +4,13 @@ const rl = @import("../readline.zig");
 
 const Command = parser.Command;
 
-pub fn receivePrompt(allocator: std.mem.Allocator) void {
+pub fn receivePrompt(allocator: std.mem.Allocator) !void {
     while (true) {
         const command_line = rl.readline(allocator, "gsh> ") orelse {
             std.debug.print("error", .{});
             return;
         };
-        parser.parse(command_line);
+        try parser.parse(allocator, command_line);
         std.debug.print("{s}\n", .{command_line});
         rl.free(command_line);
     }

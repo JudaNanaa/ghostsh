@@ -1,0 +1,92 @@
+const std = @import("std");
+const ArrayList = std.ArrayList;
+
+pub const Error = error{NoSpaceFound};
+
+pub const Token = union(enum) {
+    Pipe, // |
+    Word: []const u8,
+    Heredoc, // <<
+    LRedir, // <
+    RRedir, // >
+    ARRedir, // >>
+};
+
+pub fn debugPrint(token: Token) void {
+    switch (token) {
+        .Pipe => {
+            std.debug.print("Token::Pipe\n", .{});
+        },
+        .Heredoc => {
+            std.debug.print("Token::Heredoc\n", .{});
+        },
+        .LRedir => {
+            std.debug.print("Token::LRedir\n", .{});
+        },
+        .RRedir => {
+            std.debug.print("Token::RRedir\n", .{});
+        },
+        .ARRedir => {
+            std.debug.print("Token::ARRedir\n", .{});
+        },
+        .Word => |word| {
+            std.debug.print("Token::Word(\"{s}\")\n", .{word});
+        },
+    }
+}
+
+fn extractWord(allocator: std.mem.Allocator, line: []const u8, i: usize) ![]const u8 {
+    const rest = line[i..];
+    const pos = if (std.mem.indexOfScalar(u8, rest, ' ')) |p| p else rest.len;
+
+    return try allocator.dupe(u8, line[i .. i + pos]);
+}
+
+pub fn freeTokens(allocator: std.mem.Allocator, tokens: []Token) void {
+    for (tokens) |token| {
+        switch (token) {
+            .Word => |word| allocator.free(word),
+            else => {},
+        }
+    }
+    allocator.free(tokens);
+}
+
+pub fn lex(allocator: std.mem.Allocator, line: []const u8) ![]Token {
+    var i: usize = 0;
+    var tokens: ArrayList(Token) = .empty;
+    errdefer tokens.deinit(allocator);
+    while (i < line.len) {
+        while (i < line.len and line[i] == ' ') : (i += 1) {}
+        if (i >= line.len) break;
+
+        const c = line[i];
+        switch (c) {
+            '|' => {
+                try tokens.append(allocator, Token.Pipe);
+                i += 1;
+            },
+            '<' => {
+                try tokens.append(allocator, Token.LRedir);
+                i += 1;
+            },
+            '>' => {
+                try tokens.append(allocator, Token.RRedir);
+                i += 1;
+            },
+            else => {
+                const word = try extractWord(allocator, line, i);
+                if (word.len == 0) {
+                    allocator.free(word);
+                    i += 1;
+                    continue;
+                }
+
+                try tokens.append(allocator, Token{ .Word = word });
+                i += word.len;
+            },
+        }
+    }
+
+    return tokens.toOwnedSlice(allocator);
+}

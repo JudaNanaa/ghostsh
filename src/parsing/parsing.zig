@@ -1,4 +1,5 @@
 const std = @import("std");
+const token = @import("token.zig");
 
 pub const Command = struct {
     heredoc: bool,
@@ -11,17 +12,9 @@ pub const Command = struct {
     }
 };
 
-fn find(line: []const u8, target: u8) ?usize {
-    for (line, 0..) |c, i| {
-        if (c == target)
-            return i;
-    }
-    return null;
-}
-
 fn skipToNext(line: []const u8, i: usize, target: u8) ?usize {
     const rest = line[i + 1 ..];
-    const found = find(rest, target) orelse return null;
+    const found = std.mem.indexOfScalar(u8, rest, target) orelse return null;
     return i + 1 + found;
 }
 
@@ -61,8 +54,13 @@ fn check_unclose_elements(line: []const u8) bool {
     return true;
 }
 
-pub fn parse(command_line: []const u8) void {
+pub fn parse(allocator: std.mem.Allocator, command_line: []const u8) !void {
     if (!check_unclose_elements(command_line)) {
         // std.debug.print("unclose dquotes find\n", .{});
     }
+    const tokens = try token.lex(allocator, command_line);
+    for (tokens) |tok| {
+        token.debugPrint(tok);
+    }
+    token.freeTokens(allocator, tokens);
 }

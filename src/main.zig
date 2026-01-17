@@ -8,7 +8,5 @@ pub fn main() !void {
     }){};
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
-    rl.receivePrompt(allocator);
-
-    // std.debug.print("input => {s}", .{input});
+    try rl.receivePrompt(allocator);
 }
