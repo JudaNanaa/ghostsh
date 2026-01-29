@@ -14,7 +14,7 @@ fn print_error(target: u8) void {
     std.debug.print("unclosed '{c}'\n", .{target});
 }
 
-fn check_unclose_elements(line: []const u8) bool {
+fn checkUncloseElements(line: []const u8) bool {
     var i: usize = 0;
 
     while (i < line.len) {
@@ -47,7 +47,7 @@ fn check_unclose_elements(line: []const u8) bool {
 }
 
 pub fn parse(allocator: std.mem.Allocator, command_line: []const u8) !void {
-    if (!check_unclose_elements(command_line)) {
+    if (!checkUncloseElements(command_line)) {
         return;
     }
 
