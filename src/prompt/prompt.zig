@@ -10,7 +10,12 @@ pub fn receivePrompt(allocator: std.mem.Allocator) !void {
             std.debug.print("error", .{});
             return;
         };
-        try parser.parse(allocator, command_line);
+        parser.parse(allocator, command_line) catch |err| {
+            switch (err) {
+                inline else => std.debug.print("gsh: error: {s}\n", .{@errorName(err)}),
+            }
+            continue;
+        };
         std.debug.print("{s}\n", .{command_line});
         rl.free(command_line);
     }

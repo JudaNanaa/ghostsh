@@ -4,6 +4,13 @@ const utils = @import("utils.zig");
 
 const ArrayList = std.ArrayList;
 
+pub const ParseError = error{
+    InvalidRedirection, // e.g  > |
+    PipeAtStart, // e.g | ls
+    DandlingOperator, // e.g ls > (nothing)
+    EmptyCommand,
+};
+
 fn skipToNext(line: []const u8, i: usize, target: u8) ?usize {
     const rest = line[i + 1 ..];
     const found = std.mem.indexOfScalar(u8, rest, target) orelse return null;
@@ -46,46 +53,54 @@ fn checkUncloseElements(line: []const u8) bool {
     return true;
 }
 
+fn resolveWord(tokens: []token.Token, i: usize, str: []const u8) token.Word {
+    if (i == 0) return .{ .Command = str };
+
+    return switch (tokens[i - 1]) {
+        .LRedir, .RRedir, .ARRedir, .Heredoc => .{ .File = str },
+        .Pipe => .{ .Command = str },
+        .Word => |prev_w| switch (prev_w) {
+            .File => .{ .Command = str },
+            else => .{ .Arg = str },
+        },
+    };
+}
+
 pub fn parse(allocator: std.mem.Allocator, command_line: []const u8) !void {
     if (!checkUncloseElements(command_line)) {
         return;
     }
 
     const tokens = try token.lex(allocator, command_line);
+    errdefer token.freeTokens(allocator, tokens);
+
+    if (tokens.len == 0) return;
+
     for (tokens, 0..) |*tok, i| {
         switch (tok.*) {
+            .Pipe => {
+                if (i == 0) return error.PipeAtStart;
+                if (i > 0 and isRedir(tokens[i - 1])) return error.InvalidRedirection;
+            },
+            .LRedir, .RRedir, .ARRedir, .Heredoc => {
+                if (i > 0 and isRedir(tokens[i - 1])) return error.InvalidRedirection;
+                if (i == tokens.len - 1) return error.DandlingOperator;
+            },
             .Word => |w| {
                 const str = switch (w) {
                     inline else => |s| s,
                 };
-                if (i > 0) {
-                    // here i will check precedent token to determine the type of the current word
-                    switch (tokens[i - 1]) {
-                        .Word => |word| {
-                            switch (word) {
-                                .File => {
-                                    tok.* = .{ .Word = .{ .Command = str } };
-                                },
-                                .Command, .Arg => {
-                                    tok.* = .{ .Word = .{ .Arg = str } };
-                                },
-                                else => {},
-                            }
-                        },
-                        .LRedir, .RRedir => {
-                            tok.* = .{ .Word = .{ .File = str } };
-                        },
-                        else => {
-                            tok.* = .{ .Word = .{ .Command = str } };
-                        },
-                    }
-                } else {
-                    tok.* = .{ .Word = .{ .Command = str } };
-                }
+                tok.* = .{ .Word = resolveWord(tokens, i, str) };
             },
-            else => {},
         }
     }
     utils.printToken(tokens);
     token.freeTokens(allocator, tokens);
+}
+
+fn isRedir(tok: token.Token) bool {
+    return switch (tok) {
+        .ARRedir, .Heredoc, .LRedir, .RRedir => true,
+        else => false,
+    };
 }
