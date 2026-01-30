@@ -27,15 +27,9 @@ fn checkUncloseElements(line: []const u8) bool {
     while (i < line.len) {
         const c = line[i];
         switch (c) {
-            '"' => {
-                i = skipToNext(line, i, '"') orelse {
-                    print_error('"');
-                    return false;
-                };
-            },
-            '\'' => {
-                i = skipToNext(line, i, '\'') orelse {
-                    print_error('\'');
+            '"', '\'' => {
+                i = skipToNext(line, i, c) orelse {
+                    print_error(c);
                     return false;
                 };
             },
