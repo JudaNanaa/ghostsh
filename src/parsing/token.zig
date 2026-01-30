@@ -1,13 +1,34 @@
 const std = @import("std");
 const ArrayList = std.ArrayList;
-
 const utils = @import("utils.zig");
+
+pub const LineLex = struct {
+    line: []const u8,
+    index: usize,
+
+    pub fn isEnd(self: LineLex) bool {
+        return (self.index >= self.line.len);
+    }
+
+    pub fn currentChar(self: LineLex) u8 {
+        return (self.line[self.index]);
+    }
+
+    pub fn incrementNbIndex(self: *LineLex, nb: usize) void {
+        self.index += nb;
+    }
+
+    pub fn lookAhead(self: LineLex) ?u8 {
+        if (self.index + 1 >= self.line.len) return null;
+        return (self.line[self.index + 1]);
+    }
+};
 
 pub const Error = error{NoSpaceFound};
 
 pub const Token = union(enum) {
     Pipe, // |
-	Or, // ||
+    // Or, // ||
     Word: Word,
     Heredoc, // <<
     LRedir, // <
@@ -15,7 +36,6 @@ pub const Token = union(enum) {
     ARRedir, // >>
     And, // &
     AndAnd, // &&
-	Unknown
 };
 
 pub const Word = union(enum) {
@@ -59,12 +79,18 @@ pub fn debugPrint(token: Token) void {
     }
 }
 
-fn extractWord(allocator: std.mem.Allocator, line: []const u8, i: usize) ![]const u8 {
-    const separators = " |<>&";
-    const rest = line[i..];
+fn extractWord(allocator: std.mem.Allocator, line_lex: LineLex) ![]const u8 {
+    const separators = &[_]u8{
+        ' ', '|', '<', '>', '&',
+        9,   10,  11,  12,  13,
+    };
+
+    const line = line_lex.line;
+    const start = line_lex.index;
+    const rest = line_lex.line[start..];
     const pos = if (std.mem.indexOfAny(u8, rest, separators)) |p| p else rest.len;
 
-    return try allocator.dupe(u8, line[i .. i + pos]);
+    return try allocator.dupe(u8, line[start .. start + pos]);
 }
 
 pub fn freeTokens(allocator: std.mem.Allocator, tokens: []Token) void {
@@ -81,78 +107,58 @@ pub fn freeTokens(allocator: std.mem.Allocator, tokens: []Token) void {
     allocator.free(tokens);
 }
 
-fn create_token_operator(line: []const u8) Token {
-	const token = line[0];
-	var index = 0;
-
-	while (index < line.len or line[index] == token) {
-		index += 1;
-	}
-
-	if (index > 2) {
-		return Token.Unknown;
-	}
-	
-	
-}
-
 pub fn lex(allocator: std.mem.Allocator, line: []const u8) ![]Token {
-    var i: usize = 0;
+    var line_lex = LineLex{ .line = line, .index = 0 };
+
     var tokens: ArrayList(Token) = .empty;
     errdefer tokens.deinit(allocator);
-    while (i < line.len) {
-        while (i < line.len and utils.is_space(line[i])) : (i += 1) {}
-        if (i >= line.len) break;
+    while (!line_lex.isEnd()) {
+        while (!line_lex.isEnd() and utils.isSpace(line_lex.currentChar())) : (line_lex.incrementNbIndex(1)) {}
+        if (line_lex.isEnd()) break;
 
-        const c = line[i];
+        const c = line_lex.currentChar();
         switch (c) {
             '|' => {
                 try tokens.append(allocator, Token.Pipe);
-                i += 1;
+                line_lex.incrementNbIndex(1);
             },
             '<' => {
-                if (i + 1 < line.len) {
-                    if (line[i + 1] == '<') {
-                        try tokens.append(allocator, Token.Heredoc);
-                        i += 2;
-                        continue;
-                    }
+                if (line_lex.lookAhead() == '<') {
+                    try tokens.append(allocator, Token.Heredoc);
+                    line_lex.incrementNbIndex(2);
+                    continue;
                 }
                 try tokens.append(allocator, Token.LRedir);
-                i += 1;
+                line_lex.incrementNbIndex(1);
             },
             '>' => {
-                if (i + 1 < line.len) {
-                    if (line[i + 1] == '>') {
-                        try tokens.append(allocator, Token.ARRedir);
-                        i += 2;
-                        continue;
-                    }
+                if (line_lex.lookAhead() == '>') {
+                    try tokens.append(allocator, Token.ARRedir);
+                    line_lex.incrementNbIndex(2);
+                    continue;
                 }
                 try tokens.append(allocator, Token.RRedir);
-                i += 1;
+                line_lex.incrementNbIndex(1);
             },
             '&' => {
-                if (i + 1 < line.len) {
-                    if (line[i + 1] == '&') {
-                        try tokens.append(allocator, Token.AndAnd);
-                        i += 2;
-                        continue;
-                    }
+                if (line_lex.lookAhead() == '&') {
+                    try tokens.append(allocator, Token.AndAnd);
+                    line_lex.incrementNbIndex(2);
+                    continue;
                 }
                 try tokens.append(allocator, Token.And);
-                i += 1;
+                line_lex.incrementNbIndex(1);
             },
             else => {
-                const word = try extractWord(allocator, line, i);
+                const word = try extractWord(allocator, line_lex);
                 if (word.len == 0) {
                     allocator.free(word);
-                    i += 1;
+                    line_lex.incrementNbIndex(1);
                     continue;
                 }
 
                 try tokens.append(allocator, Token{ .Word = Word{ .Undefined = word } });
-                i += word.len;
+                line_lex.incrementNbIndex(word.len);
             },
         }
     }
