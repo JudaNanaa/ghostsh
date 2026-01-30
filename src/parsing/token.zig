@@ -1,16 +1,20 @@
 const std = @import("std");
 const ArrayList = std.ArrayList;
+
 const utils = @import("utils.zig");
 
 pub const Error = error{NoSpaceFound};
 
 pub const Token = union(enum) {
     Pipe, // |
+	Or, // ||
+	And, // &&
     Word: Word,
     Heredoc, // <<
     LRedir, // <
     RRedir, // >
     ARRedir, // >>
+	Unknown
 };
 
 pub const Word = union(enum) {
@@ -68,6 +72,21 @@ pub fn freeTokens(allocator: std.mem.Allocator, tokens: []Token) void {
         }
     }
     allocator.free(tokens);
+}
+
+fn create_token_operator(line: []const u8) Token {
+	const token = line[0];
+	var index = 0;
+
+	while (index < line.len or line[index] == token) {
+		index += 1;
+	}
+
+	if (index > 2) {
+		return Token.Unknown;
+	}
+	
+	
 }
 
 pub fn lex(allocator: std.mem.Allocator, line: []const u8) ![]Token {
