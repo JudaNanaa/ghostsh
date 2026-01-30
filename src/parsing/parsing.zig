@@ -4,15 +4,11 @@ const utils = @import("utils.zig");
 
 const ArrayList = std.ArrayList;
 
-pub const Command = struct {
-    heredoc: bool,
-    open_quotes: bool,
-    name: []u8,
-    args: [][]u8,
-
-    pub fn deinit(self: Command, allocator: std.mem.Allocator) void {
-        allocator.free(self.args);
-    }
+pub const ParseError = error{
+    InvalidRedirection, // e.g  > |
+    DanglingOperator, // e.g ls > (nothing)
+    EmptyCommand,
+    UnexpectedOperator,
 };
 
 fn skipToNext(line: []const u8, i: usize, target: u8) ?usize {
@@ -25,7 +21,7 @@ fn print_error(target: u8) void {
     std.debug.print("unclosed '{c}'\n", .{target});
 }
 
-fn check_unclose_elements(line: []const u8) bool {
+fn checkUncloseElements(line: []const u8) bool {
     var i: usize = 0;
 
     while (i < line.len) {
@@ -51,25 +47,63 @@ fn check_unclose_elements(line: []const u8) bool {
     return true;
 }
 
+fn resolveWord(tokens: []token.Token, i: usize, str: []const u8) token.Word {
+    if (i == 0) return .{ .Command = str };
+
+    return switch (tokens[i - 1]) {
+        .LRedir, .RRedir, .ARRedir, .Heredoc => .{ .File = str },
+        .Pipe, .And, .AndAnd => .{ .Command = str },
+        .Word => |prev_w| switch (prev_w) {
+            //FIXME: This is not exact, after a file a word can be a Command or an Arg depending on the last word kind
+            .File => .{ .Command = str },
+            else => .{ .Arg = str },
+        },
+    };
+}
+
 pub fn parse(allocator: std.mem.Allocator, command_line: []const u8) !void {
-    if (!check_unclose_elements(command_line)) {
+
+    //TODO: here we need to open new readline prompt and concatenate the obtained line in the new line
+    if (!checkUncloseElements(command_line)) {
         return;
     }
 
     const tokens = try token.lex(allocator, command_line);
-    // for (tokens, 0..) |tok, i| {
-    //     switch (tok) {
-    //         .Word => {
-    //             if (i > 0) {
-    //                 // here i will check precedent token to determine the type of the current word
-    //                 switch (tokens[i - 1]) {
-    //                     else => {},
-    //                 }
-    //             }
-    //         },
-    //         else => {},
-    //     }
-    // }
+    defer token.freeTokens(allocator, tokens);
+
+    if (tokens.len == 0) return;
+
+    for (tokens, 0..) |*tok, i| {
+        switch (tok.*) {
+            .Pipe, .And, .AndAnd => {
+                if (i == 0) return error.UnexpectedOperator;
+                if (i > 0 and isRedir(tokens[i - 1])) return error.InvalidRedirection;
+                if (i == tokens.len - 1) return error.EmptyCommand;
+                const next_token = tokens[i + 1];
+                switch (next_token) {
+                    .Pipe, .RRedir, .ARRedir, .Heredoc, .And, .AndAnd => return error.UnexpectedOperator,
+                    else => {},
+                }
+            },
+            .LRedir, .RRedir, .ARRedir, .Heredoc => {
+                if (i > 0 and isRedir(tokens[i - 1])) return error.InvalidRedirection;
+                if (i == tokens.len - 1) return error.DanglingOperator;
+            },
+            .Word => |w| {
+                const str = switch (w) {
+                    inline else => |s| s,
+                };
+                tok.* = .{ .Word = resolveWord(tokens, i, str) };
+            },
+        }
+    }
     utils.printToken(tokens);
-    token.freeTokens(allocator, tokens);
+    // token.freeTokens(allocator, tokens);
+}
+
+fn isRedir(tok: token.Token) bool {
+    return switch (tok) {
+        .ARRedir, .Heredoc, .LRedir, .RRedir => true,
+        else => false,
+    };
 }
