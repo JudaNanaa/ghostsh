@@ -9,7 +9,7 @@ pub const ParseError = error{
     PipeAtStart, // e.g | ls
     DanglingOperator, // e.g ls > (nothing)
     EmptyCommand,
-    UseAndIsteadOfPipe,
+    UnexpectedOperator,
 };
 
 fn skipToNext(line: []const u8, i: usize, target: u8) ?usize {
@@ -88,7 +88,7 @@ pub fn parse(allocator: std.mem.Allocator, command_line: []const u8) !void {
                 if (i == tokens.len - 1) return error.EmptyCommand;
                 const next_token = tokens[i + 1];
                 switch (next_token) {
-                    .Pipe, .RRedir, .ARRedir, .Heredoc => return error.UseAndIsteadOfPipe,
+                    .Pipe, .RRedir, .ARRedir, .Heredoc, .And, .AndAnd => return error.UnexpectedOperator,
                     else => {},
                 }
             },

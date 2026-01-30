@@ -103,19 +103,23 @@ pub fn lex(allocator: std.mem.Allocator, line: []const u8) ![]Token {
                 i += 1;
             },
             '>' => {
-                if (line[i + 1] == '>') {
-                    try tokens.append(allocator, Token.ARRedir);
-                    i += 2;
-                    continue;
+                if (i + 1 < line.len) {
+                    if (line[i + 1] == '>') {
+                        try tokens.append(allocator, Token.ARRedir);
+                        i += 2;
+                        continue;
+                    }
                 }
                 try tokens.append(allocator, Token.RRedir);
                 i += 1;
             },
             '&' => {
-                if (line[i + 1] == '&') {
-                    try tokens.append(allocator, Token.AndAnd);
-                    i += 2;
-                    continue;
+                if (i + 1 < line.len) {
+                    if (line[i + 1] == '&') {
+                        try tokens.append(allocator, Token.AndAnd);
+                        i += 2;
+                        continue;
+                    }
                 }
                 try tokens.append(allocator, Token.And);
             },
