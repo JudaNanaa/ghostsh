@@ -1,5 +1,6 @@
 const std = @import("std");
 const ArrayList = std.ArrayList;
+const utils = @import("utils.zig");
 
 pub const Error = error{NoSpaceFound};
 
@@ -74,7 +75,7 @@ pub fn lex(allocator: std.mem.Allocator, line: []const u8) ![]Token {
     var tokens: ArrayList(Token) = .empty;
     errdefer tokens.deinit(allocator);
     while (i < line.len) {
-        while (i < line.len and line[i] == ' ') : (i += 1) {}
+        while (i < line.len and utils.is_space(line[i])) : (i += 1) {}
         if (i >= line.len) break;
 
         const c = line[i];
