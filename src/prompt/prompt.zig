@@ -12,7 +12,6 @@ pub fn receivePrompt() !void {
             std.debug.print("error", .{});
             return;
         };
-        defer rl.free(command_line);
         parser.parse(allocator, command_line) catch |err| {
             switch (err) {
                 inline else => std.debug.print("gsh: error: {s}\n", .{@errorName(err)}),
@@ -26,5 +25,6 @@ pub fn receivePrompt() !void {
         } else {
             _ = arena.reset(.retain_capacity);
         }
+        rl.free(command_line);
     }
 }
