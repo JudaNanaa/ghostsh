@@ -2,10 +2,10 @@ const std = @import("std");
 const parser = @import("../parsing/parsing.zig");
 const rl = @import("../readline.zig");
 
-pub fn receivePrompt(gpa_allocator: std.mem.Allocator) !void {
+pub fn receivePrompt() !void {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    // defer arena.deinit();
     while (true) {
-        var arena = std.heap.ArenaAllocator.init(gpa_allocator);
-        defer arena.deinit();
         const allocator = arena.allocator();
 
         const command_line = rl.readline(allocator, "gsh> ") orelse {
@@ -20,5 +20,11 @@ pub fn receivePrompt(gpa_allocator: std.mem.Allocator) !void {
             continue;
         };
         std.debug.print("{s}\n", .{command_line});
+        if (command_line.len > 1000) {
+            arena.deinit();
+            arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+        } else {
+            _ = arena.reset(.retain_capacity);
+        }
     }
 }
