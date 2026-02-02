@@ -75,7 +75,7 @@ pub fn parse(allocator: std.mem.Allocator, command_line: []const u8) !void {
 
     const full_line = checkUncloseElements(allocator, command_line);
 
-    const tokens = try token.lex(allocator, command_line);
+    const tokens = try token.lex(allocator, full_line);
 
     if (tokens.len == 0) return;
 
